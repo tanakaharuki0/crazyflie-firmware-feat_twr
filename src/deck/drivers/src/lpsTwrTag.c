@@ -117,6 +117,11 @@ static dwTime_t answer_rx;
 static dwTime_t final_tx;
 static dwTime_t final_rx;
 
+static float tround1_array[LOCODECK_NR_OF_TWR_ANCHORS];
+static float tround2_array[LOCODECK_NR_OF_TWR_ANCHORS];
+static float treply1_array[LOCODECK_NR_OF_TWR_ANCHORS];
+static float treply2_array[LOCODECK_NR_OF_TWR_ANCHORS];
+
 static packet_t txPacket;
 static volatile uint8_t curr_seq = 0;
 static uint8_t current_anchor = 0;
@@ -227,6 +232,11 @@ static uint32_t rxcallback(dwDevice_t *dev) {
       treply1 = answer_tx.low32 - poll_rx.low32;
       tround2 = final_rx.low32 - answer_tx.low32;
       treply2 = final_tx.low32 - answer_rx.low32;
+
+      tround1_array[current_anchor] = tround1;
+      tround2_array[current_anchor] = tround2;
+      treply1_array[current_anchor] = treply1;
+      treply2_array[current_anchor] = treply2;
 
       tprop_ctn = ((tround1*tround2) - (treply1*treply2)) / (tround1 + tround2 + treply1 + treply2);
 
@@ -684,3 +694,55 @@ LOG_ADD(LOG_FLOAT, pressure6, &state.pressures[6])
  */
 LOG_ADD(LOG_FLOAT, pressure7, &state.pressures[7])
 LOG_GROUP_STOP(ranging)
+
+LOG_GROUP_START(twrTiming)
+
+// Anchor 0
+LOG_ADD(LOG_FLOAT, tround1_0, &tround1_array[0])
+LOG_ADD(LOG_FLOAT, tround2_0, &tround2_array[0])
+LOG_ADD(LOG_FLOAT, treply1_0, &treply1_array[0])
+LOG_ADD(LOG_FLOAT, treply2_0, &treply2_array[0])
+
+// Anchor 1
+LOG_ADD(LOG_FLOAT, tround1_1, &tround1_array[1])
+LOG_ADD(LOG_FLOAT, tround2_1, &tround2_array[1])
+LOG_ADD(LOG_FLOAT, treply1_1, &treply1_array[1])
+LOG_ADD(LOG_FLOAT, treply2_1, &treply2_array[1])
+
+// Anchor 2
+LOG_ADD(LOG_FLOAT, tround1_2, &tround1_array[2])
+LOG_ADD(LOG_FLOAT, tround2_2, &tround2_array[2])
+LOG_ADD(LOG_FLOAT, treply1_2, &treply1_array[2])
+LOG_ADD(LOG_FLOAT, treply2_2, &treply2_array[2])
+
+// Anchor 3
+LOG_ADD(LOG_FLOAT, tround1_3, &tround1_array[3])
+LOG_ADD(LOG_FLOAT, tround2_3, &tround2_array[3])
+LOG_ADD(LOG_FLOAT, treply1_3, &treply1_array[3])
+LOG_ADD(LOG_FLOAT, treply2_3, &treply2_array[3])
+
+// Anchor 4
+LOG_ADD(LOG_FLOAT, tround1_4, &tround1_array[4])
+LOG_ADD(LOG_FLOAT, tround2_4, &tround2_array[4])
+LOG_ADD(LOG_FLOAT, treply1_4, &treply1_array[4])
+LOG_ADD(LOG_FLOAT, treply2_4, &treply2_array[4])
+
+// Anchor 5
+LOG_ADD(LOG_FLOAT, tround1_5, &tround1_array[5])
+LOG_ADD(LOG_FLOAT, tround2_5, &tround2_array[5])
+LOG_ADD(LOG_FLOAT, treply1_5, &treply1_array[5])
+LOG_ADD(LOG_FLOAT, treply2_5, &treply2_array[5])
+
+// Anchor 6
+LOG_ADD(LOG_FLOAT, tround1_4, &tround1_array[6])
+LOG_ADD(LOG_FLOAT, tround2_4, &tround2_array[6])
+LOG_ADD(LOG_FLOAT, treply1_4, &treply1_array[6])
+LOG_ADD(LOG_FLOAT, treply2_4, &treply2_array[6])
+
+// Anchor 7
+LOG_ADD(LOG_FLOAT, tround1_5, &tround1_array[7])
+LOG_ADD(LOG_FLOAT, tround2_5, &tround2_array[7])
+LOG_ADD(LOG_FLOAT, treply1_5, &treply1_array[7])
+LOG_ADD(LOG_FLOAT, treply2_5, &treply2_array[7])
+
+LOG_GROUP_STOP(twrTiming)
