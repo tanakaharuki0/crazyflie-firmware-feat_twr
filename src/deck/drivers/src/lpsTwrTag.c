@@ -693,9 +693,6 @@ LOG_ADD(LOG_FLOAT, pressure6, &state.pressures[6])
  * @brief ASL of anchor 7 [m]
  */
 LOG_ADD(LOG_FLOAT, pressure7, &state.pressures[7])
-LOG_GROUP_STOP(ranging)
-
-LOG_GROUP_START(twrTiming)
 
 // Anchor 0
 LOG_ADD(LOG_FLOAT, tround1_0, &tround1_array[0])
@@ -745,4 +742,4 @@ LOG_ADD(LOG_FLOAT, tround2_5, &tround2_array[7])
 LOG_ADD(LOG_FLOAT, treply1_5, &treply1_array[7])
 LOG_ADD(LOG_FLOAT, treply2_5, &treply2_array[7])
 
-LOG_GROUP_STOP(twrTiming)
+LOG_GROUP_STOP(ranging)
