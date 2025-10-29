@@ -31,6 +31,7 @@
 #include <stdbool.h>
 #include "i2cdev.h"
 
+#define EEPROM_I2C_ADDR     0x50
 #define EEPROM_SIZE         0x1FFF
 
 /**

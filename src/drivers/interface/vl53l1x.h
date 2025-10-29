@@ -39,6 +39,7 @@ extern "C"
 {
 #endif
 
+#define VL53L1X_DEFAULT_ADDRESS 0b0101001
 
 #define USE_I2C_2V8
 
