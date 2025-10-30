@@ -30,7 +30,12 @@
 #include "param.h"
 #include "static_mem.h"
 
-NO_DMA_CCM_SAFE_ZERO_INIT tdoaEngineState_t tdoaEngineState;
+/* Move tdoaEngineState out of CCMBSS to reduce CCM pressure.
+ * This variable was previously placed in CCMBSS via
+ * NO_DMA_CCM_SAFE_ZERO_INIT (section ".ccmbss"). Moving it to normal
+ * BSS reduces CCM usage. Ensure no DMA pointers are taken to fields
+ * inside this struct before applying this change in production. */
+tdoaEngineState_t tdoaEngineState;
 
 /**
  * Log group for the TDoA engine module.

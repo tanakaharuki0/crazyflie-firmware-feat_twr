@@ -108,15 +108,35 @@ void    VL53L8CX_SwapBuffer(uint8_t* buffer, uint16_t size) { (void)buffer; (voi
 
 /* ===== pick a representative distance ===== */
 static uint16_t pick_distance_mm(const VL53L8CX_ResultsData* r) {
-  const int zones = 16; /* using 4x4 */
+  /* Use the API resolution macro for the number of zones (4x4 = 16).
+     Some ULD drops may disable per-zone counters (nb_target_detected), so
+     provide a fallback that scans per-target distances. Also handle the
+     case where distance_mm is disabled by returning 0. */
+#ifndef VL53L8CX_DISABLE_DISTANCE_MM
+  const int zones = (int)VL53L8CX_RESOLUTION_4X4;
   uint16_t best = 0xFFFF;
   for (int z = 0; z < zones; z++) {
+#ifndef VL53L8CX_DISABLE_NB_TARGET_DETECTED
+    /* Prefer the lightweight per-zone indicator when present */
     if (r->nb_target_detected[z] > 0) {
-      uint16_t d = r->distance_mm[z * VL53L8CX_NB_TARGET_PER_ZONE + 0];
+      uint16_t d = (uint16_t)r->distance_mm[z * VL53L8CX_NB_TARGET_PER_ZONE + 0];
       if (d && d < best) best = d;
     }
+#else
+    /* Fallback: scan per-target distances for this zone */
+    for (int t = 0; t < VL53L8CX_NB_TARGET_PER_ZONE; t++) {
+      int idx = z * VL53L8CX_NB_TARGET_PER_ZONE + t;
+      int16_t dd = r->distance_mm[idx];
+      if (dd > 0 && (uint16_t)dd < best) best = (uint16_t)dd;
+    }
+#endif
   }
   return (best == 0xFFFF) ? 0 : best;
+#else
+  (void)r;
+  /* distance measurements disabled in this ULD build; nothing to pick */
+  return 0;
+#endif
 }
 
 /* ===== worker ===== */
