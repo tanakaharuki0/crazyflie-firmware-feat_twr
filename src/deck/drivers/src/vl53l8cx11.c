@@ -1,4 +1,9 @@
 
+/*
+ * 日本語コメント: インクルード群
+ * - 標準ヘッダや FreeRTOS、デバッグ/デッキ API、VL53L8CX の API を読み込みます。
+ * - ここで取り込むヘッダにより後続の関数（VL53L8CX_WrByte 等）や構造体が利用可能になります。
+ */
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
@@ -15,10 +20,11 @@
 #include "vl53l8cx_api.h"
 #include "platform.h"           /* VL53L8CX_Platform */
 
-/* ===== Memory/RAM strategy toggles =====
- * VL11_USE_CCM: place large non-DMA buffers in CCM (64KB fast SRAM, non-DMA) to free main SRAM.
- * VL11_DEFAULT_RATE_HZ: per-sensor ranging frequency (before multiplexing).
- */
+#/***********************************************
+ * メモリ／RAM 戦略と設定マクロ
+ * - VL11_USE_CCM: 大きなバッファを CCM に置いてメイン SRAM を節約します。
+ * - VL11_DEFAULT_RATE_HZ: センサあたりのデフォルト測定周波数（多重化前）
+ ***********************************************/
 #ifndef VL11_USE_CCM
 #define VL11_USE_CCM 1
 #endif
@@ -27,16 +33,33 @@
 #endif
 #include "vl11_arena.h"
 
-/* Extern-only declarations of the ULD blobs. Must be defined exactly once elsewhere. */
+/*
+ * ULD バイナリ配列の extern 宣言を取り込むヘッダ
+ * - 実体 (VL53L8CX_FIRMWARE 等) は別ファイルで定義されている想定です。
+ * - printBlobAddresses() でこれらが FLASH に置かれているか確認します。
+ */
 #include "vl53l8cx_buffers.h"
 
-/* ===== Provide your REAL CS pins here ===== */
+/*
+ * チップセレクト (CS) ピン配列
+ * - 実際のハード配線に合わせてここを設定してください。
+ * - g_vl11_cs[i] がセンサ i の CS を表します。
+ */
 const deckPin_t g_vl11_cs[VL11_NUM_SENSORS] = {
   (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0},
   (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0}, (deckPin_t){0},
 };
 
-/* ===== Driver state (ultra-low RAM) ===== */
+/*
+ * ドライバ状態変数
+ * - g_running: ドライバ有効化フラグ（パラメータから制御）
+ * - g_rate_hz: 測距周波数（Hz）
+ * - g_testGen: テスト用擬似ジェネレータを使うか
+ * - g_inited: 初期化完了フラグ
+ * - g_tick: 内部カウンタ（ログ送信等に利用）
+ * - g_blobsOk: ULD バイナリが FLASH 上にあるか
+ * - g_initOk: 各センサの初期化結果コード
+ */
 static volatile uint8_t g_running = 0;
 static uint8_t  g_rate_hz = VL11_DEFAULT_RATE_HZ;
 static uint8_t  g_testGen = 1;
@@ -53,7 +76,12 @@ static uint8_t  g_initOk[VL11_NUM_SENSORS] = {0};
 #define VL11_CALL_INIT 1
 #endif
 
-/* ONE shared configuration + ONE shared results */
+/*
+ * 共有構造体と結果バッファ
+ * - g_dev: VL53L8CX API の設定用構造体（各センサに対して address をセットして使う）
+ * - g_res: 測距結果バッファ（大きいため CCM に配置することがある）
+ * - g_ranges_mm: 最終的に外部に公開する各センサの距離(mm)
+ */
 static VL53L8CX_Configuration g_dev;
 #ifdef VL11_USE_CCM
 __attribute__((section(".ccmram")))
@@ -63,18 +91,28 @@ static VL53L8CX_ResultsData g_res;
 /* public last distances */
 static uint16_t g_ranges_mm[VL11_NUM_SENSORS];
 
-/* ===== Heap probe helper ===== */
+/*
+ * ヒープ監視ユーティリティ
+ * - デバッグ用に現在の free / minimum ever を出力します。
+ */
 static inline void heapSnap(const char* tag) {
   size_t cur = xPortGetFreeHeapSize();
   size_t min = xPortGetMinimumEverFreeHeapSize();
   DEBUG_PRINT("HEAP[%s] cur=%u minEver=%u\n", (tag?tag:""), (unsigned)cur, (unsigned)min);
 }
 
-/* ===== CS helpers ===== */
+/*
+ * CS (Chip Select) のヘルパ
+ * - センサインデックスを受け取り対応する CS を操作します。
+ */
 static inline void cs_low(int i)  { VL11_GPIO_WRITE(g_vl11_cs[i], LOW); }
 static inline void cs_high(int i) { VL11_GPIO_WRITE(g_vl11_cs[i], HIGH); }
 
-/* ===== ULD transport over SPI ===== */
+/*
+ * ULD (Ultra Low-level Driver) 用 SPI トランスポート実装
+ * - VL53L8CX API が期待する低レイヤの read/write 関数を実装します。
+ * - 各関数は p->address をセンサインデックスとして扱い、該当 CS をトグルします。
+ */
 uint8_t VL53L8CX_WrByte(VL53L8CX_Platform* p, uint16_t reg, uint8_t value) {
   const int i = (int)p->address;
   VL11_SPI_ACQUIRE(); VL11_SPI_START(NULL); cs_low(i);

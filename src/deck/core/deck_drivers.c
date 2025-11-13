@@ -47,6 +47,14 @@ static int driversLen;
 
 // Init the toc access variables. Lazy initialisation: it is going to be done
 // the first time any api function is called.
+// この関数は最初のAPI呼び出し時に一度だけ実行される
+// 処理内容: リンカスクリプトで定義されたシンボルからデッキドライバの配列とその長さを取得する
+// これにより、デッキドライバの情報が初期化され、以降のAPI呼び出しで使用可能になる
+// static変数initで初期化済みかどうかを管理し、二重初期化を防止する
+// drivers変数にデッキドライバの配列の先頭アドレスを設定し、driversLen変数にドライバの数を設定する
+// デバッグ出力で見つかったドライバの数と各ドライバのVID、PID、名前を表示する
+// この関数はdeckDriverCount()、deckGetDriver()、deckFindDriverByVidPid()、deckFindDriverByName()で呼び出される
+// これにより、デッキドライバの情報が必要なときにのみ初期化され、効率的なリソース管理が可能になる
 static void deckdriversInit() {
   static bool init = false;
   if (!init) {
@@ -68,6 +76,11 @@ static void deckdriversInit() {
   }
 }
 
+// この関数は登録されているデッキドライバの数を返す
+// deckdriversInit()を呼び出して初期化を行い、driversLen変数に格納されたドライバの数を返す
+// この関数はdeckDriverCount()で呼び出される
+// これにより、デッキドライバの数を効率的に取得できる
+// 戻り値: 登録されているデッキドライバの数
 int deckDriverCount() {
   deckdriversInit();
 

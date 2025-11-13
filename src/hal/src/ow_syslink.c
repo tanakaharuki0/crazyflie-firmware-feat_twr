@@ -42,6 +42,14 @@ static bool owDataIsValid;
 
 static bool owSyslinkTransfer(uint8_t type, uint8_t length);
 
+// One-Wire初期化関数
+// owInit()が呼び出されると、まずsyslinkInit()が実行され、Syslink通信の初期化が行われる
+// 次に、waitForReplyセマフォが作成され、One-Wire通信の応答待ちに使用される
+// 最後に、lockCmdBufミューテックスが作成され、owCmdBufへのアクセスを保護するために使用される
+// これにより、One-Wire通信がSyslinkを介して安全かつ効率的に行われるようになる
+// waitForReplyセマフォは初期状態で取得されており、応答が来るまで待機するために使用される
+// owCommonInit()が呼び出され、One-Wire通信の共通初期化が行われる
+// これにより、One-Wire通信が正しく動作するための準備が整う
 void owInit()
 {
   syslinkInit();
@@ -136,6 +144,13 @@ static bool owSyslinkTransfer(uint8_t type, uint8_t length)
   return false;
 }
 
+// One-Wireメモリのスキャン関数
+// owScan()は、接続されているOne-Wireメモリの数をスキャンし、その数をnMemに格納する
+// この関数は、owSyslinkTransfer()を使用して、Syslink経由でスキャンコマンドを送信する
+// スキャンが成功すると、nMemに接続されているOne-Wireメモリの数が設定され、trueが返される
+// スキャンが失敗した場合は、falseが返される
+// One-Wireメモリとは、1-Wireプロトコルを使用して通信するメモリデバイスのこと
+// 1-Wireプロトコルは、1本のデータ線で複数のデバイスと通信できるシリアル通信プロトコル
 bool owScan(uint8_t *nMem)
 {
   bool status = false;

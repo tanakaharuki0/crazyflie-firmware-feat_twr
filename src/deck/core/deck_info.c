@@ -169,11 +169,23 @@ static bool infoDecode(DeckInfo * info)
 }
 #endif
 
+// この関数はデッキの列挙を行う
+// 1. OneWireインターフェースを初期化する
+// 2. 接続されているデッキの数をスキャンする
+// 3. 各デッキについて、OneWireメモリから情報を読み取り、デコードする
+// 4. デコードされた情報に基づいて、対応するドライバを見つける
+// 5. デッキ情報をデバッグ出力する
+// 6. コンパイル時に強制されたドライバがあれば、それも追加する
+// 7. エラーがなければ、列挙されたデッキの数を更新する
 static void enumerateDecks(void)
 {
   uint8_t nDecks = 0;
   bool noError = true;
 
+  // owInit() は OneWire インターフェースを初期化する関数
+  // これにより、デッキとの通信が可能になる
+  // OneWire メモリをスキャンして、接続されているデッキの数を取得する
+  // OneWire インターフェースとは、1本のデータ線で複数のデバイスと通信できるシリアル通信プロトコル
   owInit();
 
   if (owScan(&nDecks))
@@ -252,7 +264,7 @@ static void enumerateDecks(void)
   if (noError) {
     count = nDecks;
   }
-
+  
   return;
 }
 
