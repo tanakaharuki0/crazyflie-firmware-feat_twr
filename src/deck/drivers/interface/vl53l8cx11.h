@@ -51,8 +51,9 @@
 #define VL11_GPIO_WRITE(pin, lvl)  digitalWrite((pin), (lvl))
 #endif
 
-/* CS lines provided in the .c (fill with real deckPin_t pins) */
-extern const deckPin_t g_vl11_cs[VL11_NUM_SENSORS];
+/* CS lines provided in the .c (fill with real deckPin_t pins).
+	Not const so runtime overrides (via params) can update the .id values. */
+extern deckPin_t g_vl11_cs[VL11_NUM_SENSORS];
 
 /* Public helper API (optional) */
 #ifdef __cplusplus

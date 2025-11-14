@@ -13,11 +13,16 @@
 #ifndef VL53L8CX_API_H_
 #define VL53L8CX_API_H_
 
+#include <stdint.h>
+#include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined (__ARMCC_VERSION) && (__ARMCC_VERSION < 6010050)
 #pragma anon_unions
 #endif
-
-
 
 #include "platform.h"
 
@@ -754,5 +759,9 @@ uint8_t vl53l8cx_dci_replace_data(
 		uint8_t				*new_data,
 		uint16_t			new_data_size,
 		uint16_t			new_data_pos);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //VL53L8CX_API_H_

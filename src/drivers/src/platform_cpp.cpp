@@ -14,6 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "platform.h"
+/* Include the VL53L8CX platform interface so C types like VL53L8CX_Platform
+ * and the VL53L8CX_* function prototypes are visible to this C++ file. We
+ * use the relative path into the drivers interface directory. */
+#include "../interface/platform.h"
 
 // Provide two alternatives: the original mbed implementation when USE_MBED
 // is defined, otherwise fallback to lightweight GCC-friendly stubs that

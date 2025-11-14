@@ -12,10 +12,13 @@
 
 #ifndef _PLATFORM_H_
 #define _PLATFORM_H_
-#pragma once
 
 #include <stdint.h>
 #include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Structure VL53L8CX_Platform needs to be filled by the customer,
@@ -50,7 +53,7 @@ typedef struct
  * an increased precision.
  */
 
- #define 	VL53L8CX_USE_RAW_FORMAT
+// #define 	VL53L8CX_USE_RAW_FORMAT
 
 /*
  * @brief All macro below are used to configure the sensor output. User can
@@ -163,8 +166,12 @@ uint8_t VL53L8CX_WaitMs(
 		VL53L8CX_Platform *p_platform,
 		uint32_t TimeMs);
 
-void init_IO();
+void init_IO(void);
 void Sel_Dev(unsigned short Dev);
-uint16_t Ser_IT();
+uint16_t Ser_IT(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif	// _PLATFORM_H_

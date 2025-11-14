@@ -26,6 +26,10 @@
 #ifndef PLATFORM_H_
 #define PLATFORM_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 #include "motors.h"
 
@@ -87,3 +91,7 @@ bool platformConfigPhysicalLayoutAntennasAreClose();
 const MotorPerifDef** platformConfigGetMotorMapping();
 
 #endif /* PLATFORM_H_ */
+
+#ifdef __cplusplus
+}
+#endif
