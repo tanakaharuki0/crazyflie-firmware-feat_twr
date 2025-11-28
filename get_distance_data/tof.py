@@ -21,19 +21,20 @@ logging.basicConfig(level=logging.INFO)
 
 # --------------------------
 # ログ用変数とCSVファイル
+# logging for distance data
 log_variables = [
     "vl11.tick",
     "vl11.s0",
-    "vl11.s1",
-    "vl11.s2",
-    "vl11.s3",
-    "vl11.s4",
-    "vl11.s5",
-    "vl11.s6",
-    "vl11.s7",
-    "vl11.s8",
-    "vl11.s9",
-    "vl11.s10",
+    # "vl11.s1",
+    # "vl11.s2",
+    # "vl11.s3",
+    # "vl11.s4",
+    # "vl11.s5",
+    # "vl11.s6",
+    # "vl11.s7",
+    # "vl11.s8",
+    # "vl11.s9",
+    # "vl11.s10",
 ]
 LOG_FILE = "crazyflie_log.csv"
 
@@ -199,6 +200,8 @@ if __name__ == '__main__':
             # --------------------------
             # 離陸処理
             scf.cf.platform.send_arming_request(True)
+            # SPI通信テストが完了するまで待機 (200回 × 100ms = 20秒 + バッファ)
+            print("Waiting for SPI communication test to complete...")
             time.sleep(10.0)
             print("Success!")
             # --------------------------

@@ -8,6 +8,7 @@
 #include "vl53l8cx_api.h"
 #include "vl53l8cx_buffers.h"
 #include "platform.h"
+#include "debug.h"
 
 /* 
  * HAL層の関数プロトタイプ - ユーザー実装が必要
@@ -71,22 +72,22 @@ void Ranging_Basic(uint16_t DevAddr)
     /* (Optional) Check if there is a VL53L8CX sensor connected */
     status = vl53l8cx_is_alive(&Dev_local, &isAlive);
     if(!isAlive || status) {
-        printf("VL53L8CX not detected at requested address\n");
+        DEBUG_PRINT("VL53L8CX not detected at requested address\n");
         return;
     }
 
     /* (Mandatory) Init VL53L8CX sensor */
     status = vl53l8cx_init(&Dev_local);
     if(status) {
-        printf("VL53L8CX ULD Loading failed\n");
+        DEBUG_PRINT("VL53L8CX ULD Loading failed\n");
         return;
     }
-    printf("VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
+    DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
 
     /* Ranging loop */
     status = vl53l8cx_set_ranging_frequency_hz(&Dev_local, 1);
     if(status) {
-        printf("vl53l8cx_set_ranging_frequency_hz failed, status %u\n", status);
+        DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u\n", status);
         return;
     }
     status = vl53l8cx_start_ranging(&Dev_local);
@@ -95,13 +96,13 @@ void Ranging_Basic(uint16_t DevAddr)
         status = vl53l8cx_check_data_ready(&Dev_local, &isReady);
         if(isReady) {
             vl53l8cx_get_ranging_data(&Dev_local, &Results);
-            printf("Print data no : %3u\n", Dev_local.streamcount);
+            DEBUG_PRINT("Print data no : %3u\n", Dev_local.streamcount);
             for(i = 0; i < 16; i++) {
-                printf("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+                DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
                     Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
                     Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
             }
-            printf("\n");
+            DEBUG_PRINT("\n");
             loop++;
         }
         VL53L8CX_WaitMs(&(Dev_local.platform), 5);
@@ -120,19 +121,19 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
     MDev[DevAddr].platform.address = DevAddr;
     status = vl53l8cx_is_alive(&MDev[DevAddr], &isAlive);
     if(status) {
-        printf("VL53L8CX ULD Loading failed_alive[%d]\n", DevAddr);
+        DEBUG_PRINT("VL53L8CX ULD Loading failed_alive[%d]\n", DevAddr);
         return 0;
     }
     status = vl53l8cx_init(&MDev[DevAddr]);
     if(status) {
-        printf("VL53L8CX ULD Loading failed_init[%d]\n", DevAddr);
+        DEBUG_PRINT("VL53L8CX ULD Loading failed_init[%d]\n", DevAddr);
         return 0;
     }
-    printf("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
+    DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
 
     status = vl53l8cx_set_ranging_frequency_hz(&MDev[DevAddr], Frequency);
     if(status) {
-        printf("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
+        DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
         return 0;
     }
     return 1;
@@ -177,17 +178,17 @@ void Gget_Ranging(void)
         if(DevAddr[k] != 0xFF) {
             MDev[DevAddr[k]].platform.address = DevAddr[k];
             vl53l8cx_get_ranging_data(&MDev[DevAddr[k]], &Results);
-            printf("[%2d] ", DevAddr[k]);
+            DEBUG_PRINT("[%2d] ", DevAddr[k]);
             for(i = 0; i < 16; i++) {
                 if(Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i] == 5) {
-                    printf("[%4d]", Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
+                    DEBUG_PRINT("[%4d]", Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
                 } else {
-                    printf("--%02X--", Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+                    DEBUG_PRINT("--%02X--", Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i]);
                 }
             }
-            printf(" R[%3d]", NumRdy[k]);
-            printf(" S[%d]", ReStart[k]);
-            printf("\n");
+            DEBUG_PRINT(" R[%3d]", NumRdy[k]);
+            DEBUG_PRINT(" S[%d]", ReStart[k]);
+            DEBUG_PRINT("\n");
             NumRdy[k] = 0;
         } else {
             NumRdy[k]++;
@@ -196,7 +197,7 @@ void Gget_Ranging(void)
     
     for(k = 0; k < 11; k++) {
         if(NumRdy[k] > 250) {
-            printf("Restart DevAddr[%d] NumRdy[%d]\n", k, NumRdy[k]);
+            DEBUG_PRINT("Restart DevAddr[%d] NumRdy[%d]\n", k, NumRdy[k]);
             Start_Ranging(k);
             ReStart[k]++;
         }
@@ -218,7 +219,7 @@ int vl53l8cx_main(void)
     HAL_Delay_ms(500);
     init_IO();      /* In The platform.c */
     HAL_Delay_ms(500);
-    printf("TOF Sens Test Start\n");
+    DEBUG_PRINT("TOF Sens Test Start\n");
 
     InitError = 1;
     while(InitError) {
@@ -227,7 +228,7 @@ int vl53l8cx_main(void)
         }
         HAL_Delay_ms(500);
     }
-    printf("Ranging Start\n");
+    DEBUG_PRINT("Ranging Start\n");
     for(n = 0; n < 11; n++) {
         vl53l8cx_start_ranging(&MDev[n]);
     }
@@ -246,9 +247,9 @@ int vl53l8cx_main(void)
                         MDev[n].platform.address = n;
                         vl53l8cx_set_ranging_frequency_hz(&MDev[n], m);
                     }
-                    printf("Sampling Rate Setup[f=%d]\n", m);
+                    DEBUG_PRINT("Sampling Rate Setup[f=%d]\n", m);
                 } else {
-                    printf("Error Sampling Rate Setup[f %d]\n", m);
+                    DEBUG_PRINT("Error Sampling Rate Setup[f %d]\n", m);
                 }
             }
         }

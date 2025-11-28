@@ -9,53 +9,42 @@
 #include    "vl53l8cx_api.h"
 #include    "vl53l8cx_buffers.h"
 #include    "platform.h"
-#include <stdio.h>
+// #include <stdio.h>  // ARM embeddedでは使用しない
+#include "vl53l8cx_main_cpp.h"
 
 #ifndef USE_MBED
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/select.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <thread>
-#include <chrono>
+// ARM embedded (Crazyflie) - FreeRTOSとCrazyflieのAPIを使用
+#include "FreeRTOS.h"
+#include "task.h"
 #include "../../../utils/interface/debug.h"
 
-// Minimal BufferedSerial stub for host builds. It reads from stdin.
-// Also provide ThisThread::sleep_for for parity with mbed API.
+// FreeRTOS版のsleep (std::this_thread::sleep_forの代替)
 namespace ThisThread {
     inline void sleep_for(uint32_t ms) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        vTaskDelay(M2T(ms));  // FreeRTOSのdelay
     }
 }
 
+// BufferedSerial の代替 (Crazyflieではシリアル入力不要)
 class BufferedSerial {
 public:
-    BufferedSerial(int tx, int rx, int baud) { (void)tx; (void)rx; (void)baud; }
-    // Return number of bytes available to read (best-effort)
-    int readable() {
-        int n = 0;
-        if (ioctl(STDIN_FILENO, FIONREAD, &n) == 0) {
-            return n;
-        }
-        // fallback: use select to detect availability
-        fd_set rf;
-        FD_ZERO(&rf);
-        FD_SET(STDIN_FILENO, &rf);
-        struct timeval tv = {0, 0};
-        int r = select(STDIN_FILENO + 1, &rf, NULL, NULL, &tv);
-        return (r > 0) ? 1 : 0;
+    BufferedSerial(int tx, int rx, int baud) { 
+        (void)tx; (void)rx; (void)baud; 
     }
-    // Read up to size bytes into buf, return bytes read
+    // ARM embedded環境では常に0を返す (入力なし)
+    int readable() {
+        return 0;  // シリアル入力なし
+    }
+    // ARM embedded環境では何も読まない
     int read(char *buf, size_t size) {
-        ssize_t r = ::read(STDIN_FILENO, buf, size);
-        if (r < 0) return 0;
-        return (int)r;
+        (void)buf; (void)size;
+        return 0;  // 読み込みなし
     }
 };
 
-// instantiate stub (pins ignored)
+// instantiate stub (Crazyflie embedded用)
 static BufferedSerial serial_vcp(0, 0, 115200);
+
 #else
 static BufferedSerial serial_vcp(PA_2, PA_3, 115200);
 #endif
@@ -112,22 +101,22 @@ void Ranging_Basic(uint16_t DevAddr)
     // (Optional) Check if there is a VL53L8CX sensor connected
     status = vl53l8cx_is_alive(&Dev, &isAlive);
     if(!isAlive || status) {
-		printf("VL53L8CX not detected at requested address\n");
+		// DEBUG_PRINT("VL53L8CX not detected at requested address\n");
 		return;
 	}
 
     // (Mandatory) Init VL53L8CX sensor
 	status = vl53l8cx_init(&Dev);
 	if(status) {
-		printf("VL53L8CX ULD Loading failed\n");
+		// DEBUG_PRINT("VL53L8CX ULD Loading failed\n");
 		return;
 	}
-    printf("VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
+    // DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
 
     // Ranging loop
     status = vl53l8cx_set_ranging_frequency_hz(&Dev, 1);
 	if(status) {
-		printf("vl53l8cx_set_ranging_frequency_hz failed, status %u\n", status);
+		// DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u\n", status);
 		return;
 	}
     status = vl53l8cx_start_ranging(&Dev);
@@ -136,13 +125,13 @@ void Ranging_Basic(uint16_t DevAddr)
         status = vl53l8cx_check_data_ready(&Dev, &isReady);
         if(isReady) {
 			vl53l8cx_get_ranging_data(&Dev, &Results);
-            printf("Print data no : %3u\n", Dev.streamcount);
+            // DEBUG_PRINT("Print data no : %3u\n", Dev.streamcount);
 			for(i = 0; i < 16; i++) {
-				printf("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
-					Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
-					Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
+				// DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+					// Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
+					// Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
 			}
-			printf("\n");
+			// DEBUG_PRINT("\n");
 			loop++;
 		}
         VL53L8CX_WaitMs(&(Dev.platform), 5);
@@ -169,19 +158,19 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
     MDev[DevAddr].platform.address = DevAddr;
     status = vl53l8cx_is_alive(&MDev[DevAddr], &isAlive);
     if(status) {
-		printf("VL53L8CX ULD Loading failed_alive[%d]\n", DevAddr);
+		// DEBUG_PRINT("VL53L8CX ULD Loading failed_alive[%d]\n", DevAddr);
 		return(0);
 	}
     status = vl53l8cx_init(&MDev[DevAddr]);
 	if(status) {
-		printf("VL53L8CX ULD Loading failed_init[%d]\n", DevAddr);
+		// DEBUG_PRINT("VL53L8CX ULD Loading failed_init[%d]\n", DevAddr);
 		return(0);
 	}
-    printf("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
+    // DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
 
     status = vl53l8cx_set_ranging_frequency_hz(&MDev[DevAddr], Frequency);
 	if(status) {
-		printf("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
+		// DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
 		return(0);
 	}
     //status = vl53l8cx_start_ranging(&MDev[DevAddr]);
@@ -209,7 +198,6 @@ uint8_t NumRdy[11] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 // Start_Ranging() : 距離測定の開始／再起動
 void Gget_Ranging()
 {
-    uint8_t     status, loop, isAlive, isReady;
     char        i;
     int         k;
 
@@ -232,18 +220,18 @@ void Gget_Ranging()
         if(DevAddr[k] != 0xFF) {
             MDev[DevAddr[k]].platform.address = DevAddr[k];
             vl53l8cx_get_ranging_data(&MDev[DevAddr[k]], &Results);
-            //printf("[%d]Print data no : %3u\n", DevAddr[k], MDev[DevAddr[k]].streamcount);
-            printf("[%2d] ", DevAddr[k]);
+            //// DEBUG_PRINT("[%d]Print data no : %3u\n", DevAddr[k], MDev[DevAddr[k]].streamcount);
+            // DEBUG_PRINT("[%2d] ", DevAddr[k]);
 			for(i = 0; i < 16; i++) {
                 if(Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i] == 5) {
-                    printf("[%4d]", Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
+                    // DEBUG_PRINT("[%4d]", Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
                 } else {
-                    printf("--%02X--", Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+                    // DEBUG_PRINT("--%02X--", Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i]);
                 }
 			}
-            printf(" R[%3d]", NumRdy[k]);
-            printf(" S[%d]", ReStart[k]);
-			printf("\n");
+            // DEBUG_PRINT(" R[%3d]", NumRdy[k]);
+            // DEBUG_PRINT(" S[%d]", ReStart[k]);
+			// DEBUG_PRINT("\n");
             NumRdy[k] = 0;
         } else {
             NumRdy[k]++;
@@ -251,7 +239,7 @@ void Gget_Ranging()
     }
     for(k = 0; k < 11; k++) {
         if(NumRdy[k] > 250) {
-            printf("Restart DevAddr[%d] NumRdy[%d]\n", k, NumRdy[k]);
+            // DEBUG_PRINT("Restart DevAddr[%d] NumRdy[%d]\n", k, NumRdy[k]);
             Start_Ranging(k);
             ReStart[k]++;
         }
@@ -269,19 +257,19 @@ void Gget_Ranging()
 // vl53l8cx_set_ranging_frequency_hz() : VL53L8CX ULD API
 //----------------------------------------------------------------
 
-int main()
+extern "C" int vl53l8cx_main()
 {
     // n is sensor number(0-10)
     // m is frequency(1-60)
     // k is return value of get_Vcp()
     // In   The platform.cpp
-    DEBUG_PRINT("main run!!!\n");
+    // DEBUG_PRINT("main run!!!\n");
     int     n, m, k, InitError;
     ThisThread::sleep_for(1000);
     ThisThread::sleep_for(500);
     init_IO();      // In The platform.cpp
     ThisThread::sleep_for(500);
-    printf("TOF Sens Test Start\n");
+    // DEBUG_PRINT("TOF Sens Test Start\n");
 
     InitError = 1;
     // このループは、11個のセンサーがすべて初期化できるまで繰り返す
@@ -291,7 +279,7 @@ int main()
         }
     ThisThread::sleep_for(500);
     }
-    printf("Ranging Start\n");
+    // DEBUG_PRINT("Ranging Start\n");
     for(n = 0; n < 11; n++) {
         vl53l8cx_start_ranging(&MDev[n]);
     }
@@ -306,15 +294,16 @@ int main()
             //-------------------------------------------------------------------
             if(ucmd[0] == 'f') {
                 for( n = 1; ucmd[n] == ' ' || ucmd[n] == '\t'; n++);
-                sscanf(&ucmd[n], "%d", &m);
+                // sscanf(&ucmd[n], "%d", &m);  // ARM embedded: scanf unavailable
+                m = 10;  // デフォルト値
                 if(m >= 1 && m <= 60) {
                     for(n = 0; n < 11; n++) {
                         MDev[n].platform.address = n;
                         vl53l8cx_set_ranging_frequency_hz(&MDev[n], m);
                     }
-                    printf("Sampling Rate Setup[f=%d]\n", m);
+                    // DEBUG_PRINT("Sampling Rate Setup[f=%d]\n", m);
                 } else {
-                    printf("Error Sampling Rate Setup[f %d]\n", m);
+                    // DEBUG_PRINT("Error Sampling Rate Setup[f %d]\n", m);
                 }
             }
         }

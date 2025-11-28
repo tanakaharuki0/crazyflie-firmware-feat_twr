@@ -23,4 +23,6 @@ obj-$(CONFIG_DECK_CPX_HOST_ON_UART2)    += cpx-host-on-uart2.o
 obj-$(CONFIG_DECK_RPM)                  += rpm.o
 obj-$(CONFIG_DECK_LOADCELL)             += loadcell_nau7802.o
 obj-$(CONFIG_DECK_ACS37800)             += acs37800.o
-obj-$(CONFIG_DECK_VL53L8CX11)           += vl53l8cx11.o
+obj-$(CONFIG_DECK_VL53L8CX11)           += vl53l8cx11_ver3.o
+# obj-$(CONFIG_DECK_VL53L8CX11)           += vl53l8cx_main.o  # C版は使用しない(C++版と衝突)
+# obj-$(CONFIG_DECK_VL53L8CX11)           += vl53l8cx_main_cpp.o
