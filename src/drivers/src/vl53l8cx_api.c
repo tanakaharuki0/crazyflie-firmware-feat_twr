@@ -15,6 +15,8 @@
 #include    <string.h>
 #include    "../interface/vl53l8cx_api.h"
 #include    "../interface/vl53l8cx_buffers.h"
+#include	"../../platform/interface/platform_vl53l8cx.h"
+#include    "../../utils/interface/debug.h"
 
 /**
  * @brief Inner function, not available outside this file. This function is used
@@ -212,6 +214,7 @@ static uint8_t _vl53l8cx_send_xtalk_data(
 	return status;
 }
 
+// 呼び出しもとでspiBeginTransaction/EndTransactionで囲むこと
 uint8_t vl53l8cx_is_alive(
 		VL53L8CX_Configuration		*p_dev,
 		uint8_t				*p_is_alive)
@@ -233,9 +236,10 @@ uint8_t vl53l8cx_is_alive(
 	return status;
 }
 
+// 呼び出しもとでspiBeginTransaction/EndTransactionで囲むこと
 uint8_t vl53l8cx_init(VL53L8CX_Configuration *p_dev)
 {
-  // int16_t n;
+//   int16_t n;
 	uint8_t tmp, status = VL53L8CX_STATUS_OK;
 	uint8_t pipe_ctrl[] = {VL53L8CX_NB_TARGET_PER_ZONE, 0x00, 0x01, 0x00};
 	uint32_t single_range = 0x01;
@@ -262,12 +266,11 @@ uint8_t vl53l8cx_init(VL53L8CX_Configuration *p_dev)
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x0103, 0x01);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x000C, 0x00);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x000F, 0x43);
-	status |= VL53L8CX_WaitMs(&(p_dev->platform), 1);
+	status |= VL53L8CX_WaitMs_spi_pause(&(p_dev->platform), 1);
 
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x000F, 0x40);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x000A, 0x01);
-	status |= VL53L8CX_WaitMs(&(p_dev->platform), 100);
-
+	status |= VL53L8CX_WaitMs_spi_pause(&(p_dev->platform), 100);
 	/* Wait for sensor booted (several ms required to get sensor ready ) */
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x00);
 	status |= _vl53l8cx_poll_for_answer(p_dev, 1, 0, 0x06, 0xff, 1);
@@ -317,9 +320,13 @@ uint8_t vl53l8cx_init(VL53L8CX_Configuration *p_dev)
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x09);
 	status |= VL53L8CX_WrMulti(&(p_dev->platform),0,
 		(uint8_t*)&VL53L8CX_FIRMWARE[0],0x8000);
+	/* Give RTOS/radio a wider window between pages */
+	status |= VL53L8CX_WaitMs_spi_pause(&(p_dev->platform), 10);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x0a);
 	status |= VL53L8CX_WrMulti(&(p_dev->platform),0,
 		(uint8_t*)&VL53L8CX_FIRMWARE[0x8000],0x8000);
+	/* Wider window again before last page */
+	status |= VL53L8CX_WaitMs_spi_pause(&(p_dev->platform), 10);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x0b);
 	status |= VL53L8CX_WrMulti(&(p_dev->platform),0,
 		(uint8_t*)&VL53L8CX_FIRMWARE[0x10000],0x5000);
@@ -333,6 +340,44 @@ uint8_t vl53l8cx_init(VL53L8CX_Configuration *p_dev)
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x00);
 	status |= VL53L8CX_RdByte(&(p_dev->platform), 0x7fff, &tmp);
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x0C, 0x01);
+	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7FFF, 0x09);
+	status |= VL53L8CX_RdMulti(&(p_dev->platform), 0x0000,
+		p_dev->temp_buffer, 128);
+	VL53L8CX_SwapBuffer(p_dev->temp_buffer, 128);
+	DEBUG_PRINT("temp_buffer after FW download:\n");
+	for(int i=0; i<128; i++) {
+		DEBUG_PRINT("%02X ", p_dev->temp_buffer[i]);
+		if(i%8==7) {
+			DEBUG_PRINT("\n");
+		}
+	}
+	DEBUG_PRINT("\n");
+
+	// status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7FFF, 0x0a);
+	// status |= VL53L8CX_RdMulti(&(p_dev->platform), 0x0000,
+	// 	p_dev->temp_buffer, 128);
+	// VL53L8CX_SwapBuffer(p_dev->temp_buffer, 128);
+	// DEBUG_PRINT("temp_buffer after FW download:\n");
+	// for(int i=0; i<128; i++) {
+	// 	DEBUG_PRINT("%02X ", p_dev->temp_buffer[i]);
+	// 	if(i%8==7) {
+	// 		DEBUG_PRINT("\n");
+	// 	}
+	// }
+	// DEBUG_PRINT("\n");
+
+	// status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7FFF, 0x0b);
+	// status |= VL53L8CX_RdMulti(&(p_dev->platform), 0x0000,
+	// 	p_dev->temp_buffer, 128);
+	// VL53L8CX_SwapBuffer(p_dev->temp_buffer, 128);
+	// DEBUG_PRINT("temp_buffer after FW download:\n");
+	// for(int i=0; i<128; i++) {
+	// 	DEBUG_PRINT("%02X ", p_dev->temp_buffer[i]);
+	// 	if(i%8==7) {
+	// 		DEBUG_PRINT("\n");
+	// 	}
+	// }
+	// DEBUG_PRINT("\n");
 
 	/* Reset MCU and wait boot */
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7FFF, 0x00);
@@ -351,17 +396,15 @@ uint8_t vl53l8cx_init(VL53L8CX_Configuration *p_dev)
 	}
 
 	status |= VL53L8CX_WrByte(&(p_dev->platform), 0x7fff, 0x02);
-
-	/* Firmware checksum */
+	// /* Firmware checksum */
 	status |= VL53L8CX_RdMulti(&(p_dev->platform), (uint16_t)(0x812FFC & 0xFFFF),
 			p_dev->temp_buffer, 4);
-    /****
-    printf("%02X %02X %02X %02X\r\n", p_dev->temp_buffer[0], p_dev->temp_buffer[1],
+    // /****
+	DEBUG_PRINT("%02X %02X %02X %02X\r\n", p_dev->temp_buffer[0], p_dev->temp_buffer[1],
                                     p_dev->temp_buffer[2], p_dev->temp_buffer[3]);
-    *****/
-
 	VL53L8CX_SwapBuffer(p_dev->temp_buffer, 4);
 	memcpy((uint8_t*)&crc_checksum, &(p_dev->temp_buffer[0]), 4);
+	DEBUG_PRINT("FW checksum: %08lX\r\n", crc_checksum);
 	if (crc_checksum != (uint32_t)0xc0b6c9e) {
 		status |= VL53L8CX_STATUS_FW_CHECKSUM_FAIL;
 		goto exit;

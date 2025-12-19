@@ -17,11 +17,8 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "platform.h"
+#include "../../platform/interface/platform_vl53l8cx.h" 
 
 /**
  * @brief Inner internal number of targets.
@@ -22034,9 +22031,5 @@ const uint8_t VL53L8CX_GET_NVM_CMD[] = {
 };
 
 #endif /* VL53L8CX_BUFFERS_DEFINE */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* VL53L8CX_BUFFERS_H_ */

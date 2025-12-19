@@ -24,7 +24,7 @@ extern "C" {
 #pragma anon_unions
 #endif
 
-#include "platform.h"
+#include "../../platform/interface/platform_vl53l8cx.h" 
 
 /**
  * @brief Current driver version.
