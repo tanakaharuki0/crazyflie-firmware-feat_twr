@@ -35,7 +35,7 @@
  * NO_DMA_CCM_SAFE_ZERO_INIT (section ".ccmbss"). Moving it to normal
  * BSS reduces CCM usage. Ensure no DMA pointers are taken to fields
  * inside this struct before applying this change in production. */
-tdoaEngineState_t tdoaEngineState;
+NO_DMA_CCM_SAFE_ZERO_INIT tdoaEngineState_t tdoaEngineState;
 
 /**
  * Log group for the TDoA engine module.

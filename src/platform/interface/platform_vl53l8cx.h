@@ -1,21 +1,20 @@
 /**
-  *
-  * Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ *
+ * Copyright (c) 2021 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 
 #ifndef _PLATFORM_H_
 #define _PLATFORM_H_
 
 #include <stdint.h>
 #include <string.h>
-
 
 /**
  * @brief Structure VL53L8CX_Platform needs to be filled by the customer,
@@ -27,10 +26,10 @@
 
 typedef struct
 {
-	/* To be filled with customer's platform. At least an I2C address/descriptor
-	 * needs to be added */
-	/* Example for most standard platform : I2C address of sensor */
-    uint16_t  			address;
+    /* To be filled with customer's platform. At least an I2C address/descriptor
+     * needs to be added */
+    /* Example for most standard platform : I2C address of sensor */
+    uint16_t address;
 
 } VL53L8CX_Platform;
 
@@ -41,7 +40,7 @@ typedef struct
  * zone means a lower RAM). The value must be between 1 and 4.
  */
 
-#define 	VL53L8CX_NB_TARGET_PER_ZONE		1U
+#define VL53L8CX_NB_TARGET_PER_ZONE 1U
 
 /*
  * @brief The macro below can be used to avoid data conversion into the driver.
@@ -76,10 +75,7 @@ typedef struct
  * @return (uint8_t) status : 0 if OK
  */
 
-uint8_t VL53L8CX_RdByte(
-		VL53L8CX_Platform *p_platform,
-		uint16_t RegisterAdress,
-		uint8_t *p_value);
+uint8_t VL53L8CX_RdByte(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t *p_value);
 
 /**
  * @brief Mandatory function used to write one single byte.
@@ -90,10 +86,7 @@ uint8_t VL53L8CX_RdByte(
  * @return (uint8_t) status : 0 if OK
  */
 
-uint8_t VL53L8CX_WrByte(
-		VL53L8CX_Platform *p_platform,
-		uint16_t RegisterAdress,
-		uint8_t value);
+uint8_t VL53L8CX_WrByte(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t value);
 
 /**
  * @brief Mandatory function used to read multiples bytes.
@@ -105,11 +98,10 @@ uint8_t VL53L8CX_WrByte(
  * @return (uint8_t) status : 0 if OK
  */
 
-uint8_t VL53L8CX_RdMulti(
-		VL53L8CX_Platform *p_platform,
-		uint16_t RegisterAdress,
-		uint8_t *p_values,
-		uint32_t size);
+uint8_t VL53L8CX_RdMulti(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t *p_values, uint32_t size);
+
+uint8_t VL53L8CX_RdMulti_chunk(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t *p_values,
+                               uint32_t size);
 
 /**
  * @brief Mandatory function used to write multiples bytes.
@@ -121,11 +113,10 @@ uint8_t VL53L8CX_RdMulti(
  * @return (uint8_t) status : 0 if OK
  */
 
-uint8_t VL53L8CX_WrMulti(
-		VL53L8CX_Platform *p_platform,
-		uint16_t RegisterAdress,
-		uint8_t *p_values,
-		uint32_t size);
+uint8_t VL53L8CX_WrMulti(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t *p_values, uint32_t size);
+
+uint8_t VL53L8CX_WrMultiFW(VL53L8CX_Platform *p_platform, uint16_t RegisterAdress, uint8_t *p_values, uint32_t size,
+                           uint16_t page);
 
 /**
  * @brief Optional function, only used to perform an hardware reset of the
@@ -137,8 +128,7 @@ uint8_t VL53L8CX_WrMulti(
  * @return (uint8_t) status : 0 if OK
  */
 
-uint8_t VL53L8CX_Reset_Sensor(
-		VL53L8CX_Platform *p_platform);
+uint8_t VL53L8CX_Reset_Sensor(VL53L8CX_Platform *p_platform);
 
 /**
  * @brief Mandatory function, used to swap a buffer. The buffer size is always a
@@ -147,9 +137,7 @@ uint8_t VL53L8CX_Reset_Sensor(
  * @param (uint16_t) size : Buffer size to swap
  */
 
-void VL53L8CX_SwapBuffer(
-		uint8_t 		*buffer,
-		uint16_t 	 	 size);
+void VL53L8CX_SwapBuffer(uint8_t *buffer, uint16_t size);
 /**
  * @brief Mandatory function, used to wait during an amount of time. It must be
  * filled as it's used into the API.
@@ -159,20 +147,16 @@ void VL53L8CX_SwapBuffer(
  * @return (uint8_t) status : 0 if wait is finished.
  */
 
-uint8_t VL53L8CX_WaitMs(
-		VL53L8CX_Platform *p_platform,
-		uint32_t TimeMs);
+uint8_t VL53L8CX_WaitMs(VL53L8CX_Platform *p_platform, uint32_t TimeMs);
 
-uint8_t VL53L8CX_WaitMs_spi_pause(
-		VL53L8CX_Platform *p_platform,
-		uint32_t TimeMs);
+uint8_t VL53L8CX_WaitMs_spi_pause(VL53L8CX_Platform *p_platform, uint32_t TimeMs);
 
 void init_IO(void);
 void Sel_Dev(unsigned short Dev);
 uint16_t Ser_IT(void);
 
 void cpu_release_for_spi_pause();
-void cpu_reacquire_after_spi_pause(uint8_t* CS_PIN_STATE);
+void cpu_reacquire_after_spi_pause(uint8_t *CS_PIN_STATE);
 void vTaskDelay_for_spi_pause(uint32_t TimeMs);
 
-#endif	// _PLATFORM_H_
+#endif  // _PLATFORM_H_
