@@ -8,7 +8,7 @@
 #include "param.h"
 
 #ifndef VL11_NUM_SENSORS
-#define VL11_NUM_SENSORS 4
+#define VL11_NUM_SENSORS 1
 #endif
 #ifndef VL11_DEFAULT_RATE_HZ
 #define VL11_DEFAULT_RATE_HZ 10

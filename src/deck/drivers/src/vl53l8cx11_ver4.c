@@ -81,7 +81,7 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
     MDev[DevAddr].platform.address = DevAddr;
 
     status = vl53l8cx_is_alive(&MDev[DevAddr], &isAlive);
-    if (status)
+    if (!isAlive || status)
     {
         DEBUG_PRINT("vl53l8cx_is_alive failed, status %u[%d]\n", status, DevAddr);
         return (0);
@@ -89,17 +89,19 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
     status = vl53l8cx_init(&MDev[DevAddr]);
     if (status)
     {
-        // DEBUG_PRINT("VL53L8CX ULD Loading failed_init[%d]. status is %u\n", DevAddr, status);
+        DEBUG_PRINT("VL53L8CX ULD Loading failed_init[%d]. status is %u\n", DevAddr, status);
         return (0);
     }
     DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
 
     status = vl53l8cx_set_ranging_frequency_hz(&MDev[DevAddr], Frequency);
-    // if(status) {
-    // 	DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
-    // 	return(0);
-    // }
-    // status = vl53l8cx_start_ranging(&MDev[DevAddr]);
+    if (status)
+    {
+        DEBUG_PRINT("vl53l8cx_set_ranging_frequency_hz failed, status %u[%d]\n", status, DevAddr);
+        return (0);
+    }
+    status = vl53l8cx_start_ranging(&MDev[DevAddr]);
+    DEBUG_PRINT("vl53l8cx_start_ranging %d status=%d\n", DevAddr, status);
     return (1);
 }
 
@@ -257,7 +259,7 @@ static void onEnableUpdated()
     // Init_Sensor(0, 1);
     while (1)
     {
-        if (Init_Sensor(n, 1) == 0)
+        if (Init_Sensor(n, 1))
         {
             DEBUG_PRINT("Init_Sensor %d end!!!!!!!!!!!!\n\n", n);
             n++;
@@ -266,49 +268,70 @@ static void onEnableUpdated()
                 break;
             }
         }
-        vTaskDelay_for_spi_pause(pdMS_TO_TICKS(500));
+        // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(500));
+        VL53L8CX_WaitMs_spi_pause(&MDev[0].platform, 500);
     }
 
-    for (int i = 0; i < VL11_NUM_SENSORS; i++)
-    {
-        status = vl53l8cx_start_ranging(&MDev[i]);
-        DEBUG_PRINT("vl53l8cx_start_ranging %d status=%d\n", i, status);
-    }
+    // for (int i = 0; i < VL11_NUM_SENSORS; i++)
+    // {
+    //     status = vl53l8cx_start_ranging(&MDev[i]);
+    //     DEBUG_PRINT("vl53l8cx_start_ranging %d status=%d\n", i, status);
+    // }
 
-    vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));
-    Sel_Dev(MDev[0].platform.address);
+    // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));
+
     uint8_t isReady = 0;
-    vl53l8cx_check_data_ready(&MDev[0], &isReady);
-    DEBUG_PRINT("vl53l8cx_check_data_ready %d isReady=%d\n", MDev[0].platform.address, isReady);
-    while (true)
+    // vl53l8cx_check_data_ready(&MDev[0], &isReady);
+    // DEBUG_PRINT("vl53l8cx_check_data_ready %d isReady=%d\n", MDev[0].platform.address, isReady);
+
+    int loop = 0;
+    while (loop < 10)
     {
-        Gget_Ranging();
-        // if (isReady)
-        // {
-        //     // 測定結果格納用バッファ
-        //     VL53L8CX_ResultsData results = {0};
-
-        //     // 距離データ取得
-        //     uint8_t status = vl53l8cx_get_ranging_data(&MDev[i], &results);
-
-        //     if (status == VL53L8CX_STATUS_OK)
-        //     {
-        //         // 4x4解像度なので16個のデータがある
-        //         DEBUG_PRINT("Sensor[%d] distances(mm): ", i);
-        //         for (int j = 0; j < 16; j++)
-        //         {
-        //             DEBUG_PRINT("%d ", results.distance_mm[j]);
-        //         }
-        //         DEBUG_PRINT("\n");
-
-        //         // または最初の距離だけを表示
-        //         g_ranges_mm[i] = results.distance_mm[0];
-        //         DEBUG_PRINT("Sensor[%d] first distance: %d mm\n", i, results.distance_mm[0]);
-        //     }
-        // }
-
-        vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));  // 100ms間隔で取得
+        status = vl53l8cx_check_data_ready(&MDev[0], &isReady);
+        if (isReady)
+        {
+            vl53l8cx_get_ranging_data(&MDev[0], &Results);
+            DEBUG_PRINT("Print data no : %3u\n", MDev[0].streamcount);
+            for (int i = 0; i < 16; i++)
+            {
+                DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+                            Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i],
+                            Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+            }
+            DEBUG_PRINT("\n");
+            loop++;
+        }
+        VL53L8CX_WaitMs_spi_pause(&(MDev[0].platform), 5);
     }
+    // while (true)
+    // {
+    //     Gget_Ranging();
+    //     // if (isReady)
+    //     // {
+    //     //     // 測定結果格納用バッファ
+    //     //     VL53L8CX_ResultsData results = {0};
+
+    //     //     // 距離データ取得
+    //     //     uint8_t status = vl53l8cx_get_ranging_data(&MDev[0], &results);
+
+    //     //     if (status == VL53L8CX_STATUS_OK)
+    //     //     {
+    //     //         // 4x4解像度なので16個のデータがある
+    //     //         DEBUG_PRINT("Sensor[%d] distances(mm): ", 0);
+    //     //         for (int j = 0; j < 16; j++)
+    //     //         {
+    //     //             DEBUG_PRINT("%d ", results.distance_mm[j]);
+    //     //         }
+    //     //         DEBUG_PRINT("\n");
+
+    //     //         // または最初の距離だけを表示
+    //     //         g_ranges_mm[0] = results.distance_mm[0];
+    //     //         DEBUG_PRINT("Sensor[%d] first distance: %d mm\n", 0, results.distance_mm[0]);
+    //     //     }
+    //     // }
+
+    //     vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));  // 100ms間隔で取得
+    // }
     spiEndTransaction();
 }
 
