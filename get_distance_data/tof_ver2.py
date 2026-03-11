@@ -21,18 +21,18 @@ logging.basicConfig(level=logging.INFO)
 # --------------------------
 # ログ用変数とCSVファイル
 log_variables = [
-    "vl11.tick",
-    "vl11.s0",
-    "vl11.s1",
-    "vl11.s2",
-    "vl11.s3",
-    "vl11.s4",
-    "vl11.s5",
-    "vl11.s6",
-    "vl11.s7",
-    "vl11.s8",
-    "vl11.s9",
-    "vl11.s10",
+    "vl53l8cx.tick",
+    "vl53l8cx.s0",
+    "vl53l8cx.s1",
+    "vl53l8cx.s2",
+    "vl53l8cx.s3",
+    "vl53l8cx.s4",
+    "vl53l8cx.s5",
+    "vl53l8cx.s6",
+    "vl53l8cx.s7",
+    "vl53l8cx.s8",
+    "vl53l8cx.s9",
+    "vl53l8cx.s10",
 ]
 LOG_FILE = "crazyflie_log.csv"
 
@@ -74,10 +74,10 @@ if __name__ == '__main__':
         scf.cf.param.add_update_callback(group='deck', name='bcFlow2', cb=param_deck_flow)
 
         # Set firmware params to use REAL sensor data:
-        # turn OFF test generator and enable vl11 driver (task will be created)
+        # turn OFF test generator and enable vl53l8cx driver (task will be created)
         try:
-            scf.cf.param.set_value('vl11.testGen', '0')   # 擬似データ OFF
-            scf.cf.param.set_value('vl11.enable', '1')    # ドライバ/タスク ON
+            scf.cf.param.set_value('vl53l8cx.testGen', '0')   # 擬似データ OFF
+            scf.cf.param.set_value('vl53l8cx.enable', '1')    # ドライバ/タスク ON
         except Exception as e:
             print("Param set error:", e)
 
@@ -85,14 +85,14 @@ if __name__ == '__main__':
         if not deck_attached_event.wait(timeout=1.0):
             # If callback didn't fire, attempt to read param directly (correct API usage)
             try:
-                val_enable = scf.cf.param.get_value('vl11.enable')
-                val_testgen = scf.cf.param.get_value('vl11.testGen')
-                val_blobs = scf.cf.param.get_value('vl11.blobs_ok')
-                print("vl11.enable =", val_enable)
-                print("vl11.testGen =", val_testgen)
-                print("vl11.blobs_ok =", val_blobs)
+                val_enable = scf.cf.param.get_value('vl53l8cx.enable')
+                val_testgen = scf.cf.param.get_value('vl53l8cx.testGen')
+                val_blobs = scf.cf.param.get_value('vl53l8cx.blobs_ok')
+                print("vl53l8cx.enable =", val_enable)
+                print("vl53l8cx.testGen =", val_testgen)
+                print("vl53l8cx.blobs_ok =", val_blobs)
             except Exception as e:
-                print("Could not read vl11 params directly:", e)
+                print("Could not read vl53l8cx params directly:", e)
 
             # Also enumerate deck params to help debugging
             try:

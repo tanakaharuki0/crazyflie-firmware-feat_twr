@@ -21,18 +21,18 @@ logging.basicConfig(level=logging.INFO)
 # --------------------------
 # ログ用変数とCSVファイル
 log_variables = [
-    "vl11.tick",
-    "vl11.s0",
-    "vl11.s1",
-    "vl11.s2",
-    "vl11.s3",
-    "vl11.s4",
-    "vl11.s5",
-    "vl11.s6",
-    "vl11.s7",
-    "vl11.s8",
-    "vl11.s9",
-    "vl11.s10",
+    "vl53l8cx.tick",
+    "vl53l8cx.s0",
+    "vl53l8cx.s1",
+    "vl53l8cx.s2",
+    "vl53l8cx.s3",
+    "vl53l8cx.s4",
+    "vl53l8cx.s5",
+    "vl53l8cx.s6",
+    "vl53l8cx.s7",
+    "vl53l8cx.s8",
+    "vl53l8cx.s9",
+    "vl53l8cx.s10",
 ]
 LOG_FILE = "crazyflie_log.csv"
 
@@ -74,18 +74,18 @@ if __name__ == '__main__':
             # Optional: set per-sensor CS mapping from host. Adjust cs_mapping to match
             # your deck wiring. Values are deckPin_t.id (see deck_constants.c), e.g.
             # DECK_GPIO_IO1=4, DECK_GPIO_IO2=5, ..., DECK_GPIO_MOSI=12
-            # Example mapping (length must be VL11_NUM_SENSORS == 11):
+            # Example mapping (length must be vl53l8cx_NUM_SENSORS == 11):
             cs_mapping = [4, 5, 6, 7, 8, 9, 10, 11, 12, 2, 3]
             try:
                 for i, pin in enumerate(cs_mapping):
-                    scf.cf.param.set_value(f'vl11.cs{i}', str(pin))
+                    scf.cf.param.set_value(f'vl53l8cx.cs{i}', str(pin))
                     time.sleep(0.02)
             except Exception:
                 # If param write fails, we continue — user can still set params manually
-                print('Warning: failed to set some vl11.csN params')
+                print('Warning: failed to set some vl53l8cx.csN params')
 
-            scf.cf.param.set_value('vl11.testGen', '0')   # まず擬似データを OFF に
-            scf.cf.param.set_value('vl11.enable', '1')    # ドライバ/タスク ON
+            scf.cf.param.set_value('vl53l8cx.testGen', '0')   # まず擬似データを OFF に
+            scf.cf.param.set_value('vl53l8cx.enable', '1')    # ドライバ/タスク ON
         except Exception as e:
             print("Param set error:", e)
 
@@ -94,8 +94,8 @@ if __name__ == '__main__':
         deadline = time.time() + 5.0
         while time.time() < deadline:
             try:
-                val = scf.cf.param.get_value('vl11.blobs_ok')
-                print("vl11.blobs_ok =", val)
+                val = scf.cf.param.get_value('vl53l8cx.blobs_ok')
+                print("vl53l8cx.blobs_ok =", val)
                 if val == '1':
                     blobs_ok = True
                     break
@@ -104,9 +104,9 @@ if __name__ == '__main__':
             time.sleep(0.2)
 
         if not blobs_ok:
-            print("vl11.blobs_ok is not 1. Falling back to test generator (no real sensor or blobs missing).")
+            print("vl53l8cx.blobs_ok is not 1. Falling back to test generator (no real sensor or blobs missing).")
             try:
-                scf.cf.param.set_value('vl11.testGen', '1')
+                scf.cf.param.set_value('vl53l8cx.testGen', '1')
             except Exception:
                 pass
 

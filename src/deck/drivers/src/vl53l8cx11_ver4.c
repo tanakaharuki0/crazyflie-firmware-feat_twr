@@ -8,9 +8,11 @@
 #include "FreeRTOS.h"
 #include "debug.h"
 #include "deck.h"
+#include "led.h"
 #include "log.h"
 #include "param.h"
 #include "static_mem.h"
+#include "system.h"
 #include "task.h"
 #include "vl53l8cx_api.h"
 /* Deck SPI and GPIO APIs */
@@ -20,29 +22,31 @@
 #include "stm32f4xx_spi.h" /* For SPI_BaudRatePrescaler_* definitions */
 
 /* ===== Memory/RAM strategy toggles =====
- * VL11_USE_CCM: place large non-DMA buffers in CCM (64KB fast SRAM, non-DMA) to free main SRAM.
- * VL11_DEFAULT_RATE_HZ: per-sensor ranging frequency (before multiplexing).
+ * vl53l8cx_USE_CCM: place large non-DMA buffers in CCM (64KB fast SRAM, non-DMA) to free main SRAM.
+ * vl53l8cx_DEFAULT_RATE_HZ: per-sensor ranging frequency (before multiplexing).
  */
-#ifndef VL11_USE_CCM
-#define VL11_USE_CCM 1
+#ifndef vl53l8cx_USE_CCM
+#define vl53l8cx_USE_CCM 1
 #endif
-#ifndef VL11_DEFAULT_RATE_HZ
-#define VL11_DEFAULT_RATE_HZ 10
+#ifndef vl53l8cx_DEFAULT_RATE_HZ
+#define vl53l8cx_DEFAULT_RATE_HZ 10
 #endif
-#include "vl11_arena.h"
+// #include "vl53l8cx_arena.h"
 
 /* Extern-only declarations of the ULD blobs. Must be defined exactly once elsewhere. */
 #include "../../platform/interface/platform_vl53l8cx.h"
 #include "vl53l8cx_buffers.h"
 
+#define DECK_SPI_MODE3
+
 /* ===== Provide your REAL CS pins here ===== */
-const deckPin_t g_vl11_cs[VL11_NUM_SENSORS] = {
+const deckPin_t g_vl53l8cx_cs[vl53l8cx_NUM_SENSORS] = {
     (deckPin_t){0},
 };
 
 /* ===== Driver state (ultra-low RAM) ===== */
 static volatile uint8_t g_running = 0;
-static uint8_t g_rate_hz = VL11_DEFAULT_RATE_HZ;
+static uint8_t g_rate_hz = vl53l8cx_DEFAULT_RATE_HZ;
 static uint8_t g_testGen = 1;
 // static uint8_t  g_inited  = 0;
 static uint32_t g_tick = 0;
@@ -50,29 +54,85 @@ static uint32_t g_tick = 0;
 /* Heap snap + diagnostics */
 static uint8_t g_heapSnap = 0;
 static uint8_t g_blobsOk = 0; /* 1 if blobs look valid & in flash */
-// static TaskHandle_t g_task = NULL;
-// static uint8_t  g_initOk[VL11_NUM_SENSORS] = {0};
+static TaskHandle_t g_task = NULL;
+// static uint8_t  g_initOk[vl53l8cx_NUM_SENSORS] = {0};
 
 /* Build-time switch to bypass ULD init for isolation tests (0 = skip, 1 = call init) */
-#ifndef VL11_CALL_INIT
-#define VL11_CALL_INIT 1
+#ifndef vl53l8cx_CALL_INIT
+#define vl53l8cx_CALL_INIT 1
 #endif
 
 /* ONE shared configuration + ONE shared results */
-NO_DMA_CCM_SAFE_ZERO_INIT static VL53L8CX_Configuration g_dev;
-#ifdef VL11_USE_CCM
+// NO_DMA_CCM_SAFE_ZERO_INIT static VL53L8CX_Configuration g_dev;
+#ifdef vl53l8cx_USE_CCM
 __attribute__((section(".ccmram")))
 #endif
 // static VL53L8CX_ResultsData g_res;
 
 /* public last distances */
-static uint16_t g_ranges_mm[VL11_NUM_SENSORS];
+static uint16_t g_ranges_mm[vl53l8cx_NUM_SENSORS];
 
-// #ifdef VL11_USE_CCM
+// #ifdef vl53l8cx_USE_CCM
 // __attribute__((section(".ccmram")))
 // #endif
-VL53L8CX_Configuration MDev[VL11_NUM_SENSORS];
+VL53L8CX_Configuration MDev[vl53l8cx_NUM_SENSORS];
 VL53L8CX_ResultsData Results;
+
+uint8_t callbacked = 0;
+VL53L8CX_Configuration Dev;  // Sensor configuration
+void Ranging_Basic(uint16_t DevAddr)
+{
+    uint8_t status, loop, isAlive;
+    // uint isReady, i;
+
+    Dev.platform.address = DevAddr;
+
+    // (Optional) Check if there is a VL53L8CX sensor connected
+    status = vl53l8cx_is_alive(&Dev, &isAlive);
+    if (!isAlive || status)
+    {
+        DEBUG_PRINT("VL53L8CX not detected at requested address\n");
+        return;
+    }
+    // DEBUG_PRINT("alive\n");
+    // (Mandatory) Init VL53L8CX sensor
+    status = vl53l8cx_init(&Dev);
+    if (status)
+    {
+        DEBUG_PRINT("VL53L8CX ULD Loading failed\n");
+        return;
+    }
+    DEBUG_PRINT("ULD ready\n");
+
+    // Ranging loop
+    status = vl53l8cx_set_ranging_frequency_hz(&Dev, 30);
+    if (status)
+    {
+        DEBUG_PRINT("set_ranging_frequency_hz failed, status %u\n", status);
+        return;
+    }
+    status = vl53l8cx_start_ranging(&Dev);
+    loop = 0;
+    while (loop < 30000)
+    {
+        // status = vl53l8cx_check_data_ready(&Dev, &isReady);
+        // if (isReady)
+        // {
+        //     vl53l8cx_get_ranging_data(&Dev, &Results);
+        //     DEBUG_PRINT("Print data no : %3u\n", Dev.streamcount);
+        //     for (i = 0; i < 16; i++)
+        //     {
+        //         DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+        //                     Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i],
+        //                     Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+        //     }
+        //     DEBUG_PRINT("\n");
+        //     loop++;
+        // }
+        DEBUG_PRINT("l\n");
+        VL53L8CX_WaitMs(&(Dev.platform), 50);
+    }
+}
 
 int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
 {
@@ -92,7 +152,7 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
         DEBUG_PRINT("VL53L8CX ULD Loading failed_init[%d]. status is %u\n", DevAddr, status);
         return (0);
     }
-    DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
+    // DEBUG_PRINT("VL53L8CX ULD ready ! (Version : %s)[%d]\n", VL53L8CX_API_REVISION, DevAddr);
 
     status = vl53l8cx_set_ranging_frequency_hz(&MDev[DevAddr], Frequency);
     if (status)
@@ -101,7 +161,11 @@ int Init_Sensor(uint16_t DevAddr, uint8_t Frequency)
         return (0);
     }
     status = vl53l8cx_start_ranging(&MDev[DevAddr]);
-    DEBUG_PRINT("vl53l8cx_start_ranging %d status=%d\n", DevAddr, status);
+    if (status)
+    {
+        DEBUG_PRINT("vl53l8cx_start_ranging failed, status %u[%d]\n", status, DevAddr);
+        return (0);
+    }
     return (1);
 }
 
@@ -195,178 +259,207 @@ void Gget_Ranging()
 /* ===== Heap probe helper ===== */
 static inline void heapSnap(const char* tag)
 {
-    size_t cur = xPortGetFreeHeapSize();
-    size_t min = xPortGetMinimumEverFreeHeapSize();
-    DEBUG_PRINT("HEAP[%s] cur=%u minEver=%u\n", (tag ? tag : ""), (unsigned)cur, (unsigned)min);
+    // size_t cur = xPortGetFreeHeapSize();
+    // size_t min = xPortGetMinimumEverFreeHeapSize();
+    // DEBUG_PRINT("HEAP%s cur%u min%u\n", (tag ? tag : ""), (unsigned)cur, (unsigned)min);
+}
+
+void led_debug(int seconds)
+{
+    int frequency = 10;
+    for (int i = 0; i < seconds * frequency; i++)
+    {
+        ledSet(LED_GREEN_R, true);
+        vTaskDelay(pdMS_TO_TICKS(1000 / frequency));
+        ledSet(LED_GREEN_R, false);
+        vTaskDelay(pdMS_TO_TICKS(1000 / frequency));
+    }
 }
 
 /* ===== CS helpers ===== */
-static inline void cs_low(int i) { VL11_GPIO_WRITE(g_vl11_cs[i], LOW); }
-static inline void cs_high(int i) { VL11_GPIO_WRITE(g_vl11_cs[i], HIGH); }
+static inline void cs_low(int i) { vl53l8cx_GPIO_WRITE(g_vl53l8cx_cs[i], LOW); }
+static inline void cs_high(int i) { vl53l8cx_GPIO_WRITE(g_vl53l8cx_cs[i], HIGH); }
 
-// static void vl11Task(void* arg) {
-//   (void)arg;
-//   DEBUG_PRINT("vl11Task: Started (ver2 - minimal driver)\n");
-// }
+static void vl53l8cxTask(void* arg)
+{
+    (void)arg;
+    systemWaitStart();
+
+    // int tmp_sensor = 0;
+
+    for (;;)
+    {
+        // DEBUG_PRINT("w\n");
+        vTaskDelay(pdMS_TO_TICKS(100));
+        // DEBUG_PRINT("w\n");
+        if (callbacked)
+        {
+            // DEBUG_PRINT("b\n");
+            led_debug(2);
+            break;
+        }
+    }
+
+    // int n = 0;
+    // uint8_t status;
+    init_IO();
+    spiBeginTransaction(SPI_BAUDRATE_2MHZ);
+    Ranging_Basic(0);
+    // このループは、11個のセンサーがすべて初期化できるまで繰り返す
+    // while (1)
+    // {
+    //     if (Init_Sensor(tmp_sensor, 30))
+    //     {
+    //         // DEBUG_PRINT("Init_Sensor %d end!!!!!!!!!!!!\n\n", n);
+    //         n++;
+    //         if (n >= vl53l8cx_NUM_SENSORS)
+    //         {
+    //             break;
+    //         }
+    //     }
+    //     // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(500));
+    //     VL53L8CX_WaitMs_spi_pause(&MDev[tmp_sensor].platform, 500);
+    // }
+
+    // led_debug(2);
+
+    // uint8_t isReady = 0;
+    // int loop = 0;
+    // while (loop < 10)
+    // {
+    //     status = vl53l8cx_check_data_ready(&MDev[tmp_sensor], &isReady);
+    //     if (isReady)
+    //     {
+    //         vl53l8cx_get_ranging_data(&MDev[tmp_sensor], &Results);
+    //         DEBUG_PRINT("Print data no : %3u\n", MDev[tmp_sensor].streamcount);
+    //         for (int i = 0; i < 16; i++)
+    //         {
+    //             DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+    //                         Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i],
+    //                         Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+    //         }
+    //         DEBUG_PRINT("\n");
+    //         loop++;
+    //     }
+    //     VL53L8CX_WaitMs_spi_pause(&(MDev[tmp_sensor].platform), 5);
+    // }
+    spiEndTransaction();
+    vTaskDelete(NULL);
+}
 
 static void onEnableUpdated()
 {
-    // heapSnap(g_running ? "enable=1" : "enable=0");
-    // if (g_running && g_task == NULL) {
-    //   xTaskCreate(vl11Task, "vl11", 384, NULL, tskIDLE_PRIORITY + 1, &g_task);
-    // }
+    // DEBUG_PRINT("onE %d\n", g_running);
+    // heapSnap(g_running ? "ena1" : "ena0");
+    callbacked = 1;
+    // DEBUG_PRINT("callbacked\n");
 
-    memset(&g_dev, 0, sizeof(g_dev));
-    g_dev.platform.address = (uint16_t)0;
-
-    // if (g_blobsOk){
-    //   vl11_arena_reset(12*1024);   // start with 12 KB; adjust if you see OOM log
-    //   int8_t st = vl53l8cx_init(&g_dev);
-    //   DEBUG_PRINT("vl8cx init -> %d\n", (int)st);
-    //   if (st == VL53L8CX_STATUS_OK) {
-    //     /* Force 4x4 to shrink result buffers */
-    //     vl53l8cx_set_resolution(&g_dev, VL53L8CX_RESOLUTION_4X4);
-    //     /* If your ULD exposes it, keep 1 target/zone (API name differs across drops)
-    //        Examples:
-    //        // vl53l8cx_set_nb_target_per_zone(&g_dev, 1);
-    //        // vl53l8cx_set_nb_targets_per_zone(&g_dev, 1);
-    //     */
-    //     vl53l8cx_set_ranging_frequency_hz(&g_dev, g_rate_hz);
-    //     (void)vl53l8cx_start_ranging(&g_dev);
-    // }else {
-    //     DEBUG_PRINT("vl8cx skipped init (blobs missing)\n");
-    //   }
-    // }
-    // uint8_t status = VL53L8CX_STATUS_OK;
-    // DEBUG_PRINT("\n\n\nWrByte start!!!!!!!!!!!!\n");
-    // /* snapshot heap before heavy loop */
-    // heapSnap("before-loop");
-    // // 低レベルSPI通信テスト: CS pin と SPI 直接制御
-    // DEBUG_PRINT("VL11: Low-level SPI test starting...\n");
-
-    // // CS pins の初期化 (IO3, IO4 を OUTPUT mode にして HIGH に設定)
-    // pinMode(DECK_GPIO_IO3, OUTPUT);
-    // pinMode(DECK_GPIO_IO4, OUTPUT);
-    // digitalWrite(DECK_GPIO_IO3, HIGH);
-    // digitalWrite(DECK_GPIO_IO4, HIGH);
-    // DEBUG_PRINT("VL11: CS pins initialized (IO3=HIGH, IO4=HIGH)\n");
-    int n = 0;
-    uint8_t status;
-    init_IO();
-    spiBeginTransaction(SPI_BAUDRATE_2MHZ);
-    // DEBUG_PRINT("Init_IO() success \n\n");
-    // このループは、11個のセンサーがすべて初期化できるまで繰り返す
-    // Init_Sensor(0, 1);
-    while (1)
-    {
-        if (Init_Sensor(n, 1))
-        {
-            DEBUG_PRINT("Init_Sensor %d end!!!!!!!!!!!!\n\n", n);
-            n++;
-            if (n >= VL11_NUM_SENSORS)
-            {
-                break;
-            }
-        }
-        // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(500));
-        VL53L8CX_WaitMs_spi_pause(&MDev[0].platform, 500);
-    }
-
-    // for (int i = 0; i < VL11_NUM_SENSORS; i++)
+    // Print all tasks
     // {
-    //     status = vl53l8cx_start_ranging(&MDev[i]);
-    //     DEBUG_PRINT("vl53l8cx_start_ranging %d status=%d\n", i, status);
+    // char taskBuffer[100];
+    // vTaskList(taskBuffer);
+    // DEBUG_PRINT("\n");
+    // DEBUG_PRINT("%s", taskBuffer);
     // }
 
-    // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));
-
-    uint8_t isReady = 0;
-    // vl53l8cx_check_data_ready(&MDev[0], &isReady);
-    // DEBUG_PRINT("vl53l8cx_check_data_ready %d isReady=%d\n", MDev[0].platform.address, isReady);
-
-    int loop = 0;
-    while (loop < 10)
-    {
-        status = vl53l8cx_check_data_ready(&MDev[0], &isReady);
-        if (isReady)
-        {
-            vl53l8cx_get_ranging_data(&MDev[0], &Results);
-            DEBUG_PRINT("Print data no : %3u\n", MDev[0].streamcount);
-            for (int i = 0; i < 16; i++)
-            {
-                DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
-                            Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i],
-                            Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * i]);
-            }
-            DEBUG_PRINT("\n");
-            loop++;
-        }
-        VL53L8CX_WaitMs_spi_pause(&(MDev[0].platform), 5);
-    }
-    // while (true)
+    // if (g_running && g_task == NULL)
     // {
-    //     Gget_Ranging();
-    //     // if (isReady)
-    //     // {
-    //     //     // 測定結果格納用バッファ
-    //     //     VL53L8CX_ResultsData results = {0};
-
-    //     //     // 距離データ取得
-    //     //     uint8_t status = vl53l8cx_get_ranging_data(&MDev[0], &results);
-
-    //     //     if (status == VL53L8CX_STATUS_OK)
-    //     //     {
-    //     //         // 4x4解像度なので16個のデータがある
-    //     //         DEBUG_PRINT("Sensor[%d] distances(mm): ", 0);
-    //     //         for (int j = 0; j < 16; j++)
-    //     //         {
-    //     //             DEBUG_PRINT("%d ", results.distance_mm[j]);
-    //     //         }
-    //     //         DEBUG_PRINT("\n");
-
-    //     //         // または最初の距離だけを表示
-    //     //         g_ranges_mm[0] = results.distance_mm[0];
-    //     //         DEBUG_PRINT("Sensor[%d] first distance: %d mm\n", 0, results.distance_mm[0]);
-    //     //     }
-    //     // }
-
-    //     vTaskDelay_for_spi_pause(pdMS_TO_TICKS(100));  // 100ms間隔で取得
+    //     xTaskCreate(vl53l8cxTask, "vl53l8cx", 384, NULL, tskIDLE_PRIORITY + 3, &g_task);
     // }
-    spiEndTransaction();
+
+    // memset(&g_dev, 0, sizeof(g_dev));
+    // g_dev.platform.address = (uint16_t)0;
+
+    // int n = 0;
+    // uint8_t status;
+    // init_IO();
+    // spiBeginTransaction(SPI_BAUDRATE_2MHZ);
+    // // DEBUG_PRINT("Init_IO() success \n\n");
+    // // このループは、11個のセンサーがすべて初期化できるまで繰り返す
+    // // Init_Sensor(0, 1);
+    // while (1)
+    // {
+    //     if (Init_Sensor(n, 30))
+    //     {
+    //         // DEBUG_PRINT("Init_Sensor %d end!!!!!!!!!!!!\n\n", n);
+    //         n++;
+    //         if (n >= vl53l8cx_NUM_SENSORS)
+    //         {
+    //             break;
+    //         }
+    //     }
+    //     // vTaskDelay_for_spi_pause(pdMS_TO_TICKS(500));
+    //     VL53L8CX_WaitMs_spi_pause(&MDev[0].platform, 500);
+    // }
+
+    // uint8_t isReady = 0;
+    // int loop = 0;
+    // while (loop < 10)
+    // {
+    //     status = vl53l8cx_check_data_ready(&MDev[0], &isReady);
+    //     if (isReady)
+    //     {
+    //         vl53l8cx_get_ranging_data(&MDev[0], &Results);
+    //         DEBUG_PRINT("Print data no : %3u\n", MDev[0].streamcount);
+    //         for (int i = 0; i < 16; i++)
+    //         {
+    //             DEBUG_PRINT("Zone : %3d, Status : %3u, Distance : %4d mm\n", i,
+    //                         Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE * i],
+    //                         Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * i]);
+    //         }
+    //         DEBUG_PRINT("\n");
+    //         loop++;
+    //     }
+    //     VL53L8CX_WaitMs_spi_pause(&(MDev[0].platform), 5);
+    // }
+    // spiEndTransaction();
 }
 
 /* ===== Robust blob address snoop (FLASH vs RAM) ===== */
 static void printBlobAddresses(void)
 {
-    uintptr_t aFW = (uintptr_t)(&VL53L8CX_FIRMWARE[0]);
-    uintptr_t aCFG = (uintptr_t)(&VL53L8CX_DEFAULT_CONFIGURATION[0]);
-    uintptr_t aXTALK = (uintptr_t)(&VL53L8CX_DEFAULT_XTALK[0]);
-    uintptr_t aNVM = (uintptr_t)(&VL53L8CX_GET_NVM_CMD[0]);
+    if (g_task == NULL)
+    // if (g_running && g_task == NULL)
+    {
+        BaseType_t rc = xTaskCreate(vl53l8cxTask, "vl53l8cx", 384, NULL, tskIDLE_PRIORITY + 4, &g_task);
+        if (rc == pdPASS)
+        {
+            DEBUG_PRINT("OK\n");
+        }
+        else
+        {
+            DEBUG_PRINT("FAIL\n");
+        }
+    }
+    // uintptr_t aFW = (uintptr_t)(&VL53L8CX_FIRMWARE[0]);
+    // uintptr_t aCFG = (uintptr_t)(&VL53L8CX_DEFAULT_CONFIGURATION[0]);
+    // uintptr_t aXTALK = (uintptr_t)(&VL53L8CX_DEFAULT_XTALK[0]);
+    // uintptr_t aNVM = (uintptr_t)(&VL53L8CX_GET_NVM_CMD[0]);
 
-    DEBUG_PRINT("VL8CX blob addrs: FW=0x%08" PRIxPTR " CFG=0x%08" PRIxPTR " XTALK=0x%08" PRIxPTR " NVM=0x%08" PRIxPTR
-                "\n",
-                aFW, aCFG, aXTALK, aNVM);
-    DEBUG_PRINT("Note: FLASH ~0x080xxxxx, SRAM ~0x200xxxxx. Arrays must be in FLASH.\n");
+    // DEBUG_PRINT("VL8CX blob addrs: FW=0x%08" PRIxPTR " CFG=0x%08" PRIxPTR " XTALK=0x%08" PRIxPTR " NVM=0x%08" PRIxPTR
+    //             "\n",
+    //             aFW, aCFG, aXTALK, aNVM);
+    // DEBUG_PRINT("Note: FLASH ~0x080xxxxx, SRAM ~0x200xxxxx. Arrays must be in FLASH.\n");
 
     /* Consider them OK if they are non-zero and look like FLASH */
-    int ok = (aFW && aCFG && aXTALK && aNVM);
-    int inFlash = ((aFW & 0xFF000000u) == 0x08000000u) && ((aCFG & 0xFF000000u) == 0x08000000u) &&
-                  ((aXTALK & 0xFF000000u) == 0x08000000u) && ((aNVM & 0xFF000000u) == 0x08000000u);
-    g_blobsOk = (ok && inFlash) ? 1 : 0;
-    DEBUG_PRINT("VL8CX blobs %s, placement=%s\n", g_blobsOk ? "OK" : "BAD",
-                inFlash ? "FLASH" : (ok ? "NOT-FLASH" : "MISSING"));
+    // int ok = (aFW && aCFG && aXTALK && aNVM);
+    // int inFlash = ((aFW & 0xFF000000u) == 0x08000000u) && ((aCFG & 0xFF000000u) == 0x08000000u) &&
+    //               ((aXTALK & 0xFF000000u) == 0x08000000u) && ((aNVM & 0xFF000000u) == 0x08000000u);
+    // g_blobsOk = (ok && inFlash) ? 1 : 0;
+    // DEBUG_PRINT("VL8CX blobs %s, placement=%s\n", g_blobsOk ? "OK" : "BAD",
+    //             inFlash ? "FLASH" : (ok ? "NOT-FLASH" : "MISSING"));
 }
 
 /* ===== Params / Logs ===== */
-PARAM_GROUP_START(vl11)
+PARAM_GROUP_START(vl53l8cx)
 PARAM_ADD_WITH_CALLBACK(PARAM_UINT8, enable, &g_running, onEnableUpdated)
 PARAM_ADD(PARAM_UINT8, rate_hz, &g_rate_hz)
 PARAM_ADD(PARAM_UINT8, testGen, &g_testGen)
 PARAM_ADD(PARAM_UINT8, heapsnap, &g_heapSnap) /* write 1 to print heap */
 PARAM_ADD(PARAM_UINT8, blobs_ok, &g_blobsOk)  /* read-only diagnostic */
-PARAM_GROUP_STOP(vl11)
+PARAM_GROUP_STOP(vl53l8cx)
 
-LOG_GROUP_START(vl11)
+LOG_GROUP_START(vl53l8cx)
 LOG_ADD(LOG_UINT32, tick, &g_tick)
 LOG_ADD(LOG_UINT16, s0, &g_ranges_mm[0])
 // LOG_ADD(LOG_UINT16, s1,  &g_ranges_mm[1])
@@ -379,19 +472,20 @@ LOG_ADD(LOG_UINT16, s0, &g_ranges_mm[0])
 // LOG_ADD(LOG_UINT16, s8,  &g_ranges_mm[8])
 // LOG_ADD(LOG_UINT16, s9,  &g_ranges_mm[9])
 // LOG_ADD(LOG_UINT16, s10, &g_ranges_mm[10])
-LOG_GROUP_STOP(vl11)
+LOG_GROUP_STOP(vl53l8cx)
 
 /* ===== Deck glue ===== */
-static void vl11Init(DeckInfo* info)
+static void vl53l8cxInit(DeckInfo* info)
 {
     (void)info;
     heapSnap("init");
     printBlobAddresses();
 }
 
-bool vl11IsRunning(void) { return g_running != 0; }
-// uint16_t vl11GetLastMm(int index) { if (index < 0 || index >= VL11_NUM_SENSORS) return 0; return g_ranges_mm[index];
+bool vl53l8cxIsRunning(void) { return g_running != 0; }
+// uint16_t vl53l8cxGetLastMm(int index) { if (index < 0 || index >= vl53l8cx_NUM_SENSORS) return 0; return
+// g_ranges_mm[index];
 // }
 
-static const DeckDriver bcVL53L8CX11 = {.name = "bcVL53L8CX11", .init = vl11Init};
+static const DeckDriver bcVL53L8CX11 = {.name = "bcVL53L8CX11", .init = vl53l8cxInit};
 DECK_DRIVER(bcVL53L8CX11);
